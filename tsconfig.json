@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": false,
+    "strict": true,
+    "skipLibCheck": true,
+    "noUnusedParameters": false,
+    "noUnusedLocals": false,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "target": "ES2020",
+    "inlineSourceMap": true,
+    "isolatedModules": true,
+    "preserveWatchOutput": true,
+    "allowJs": false,
+    "outDir": "./dist",
+    "incremental": true,
+    "baseUrl": "./src",
+    "plugins": [
+      {
+        "transform": "@zerollup/ts-transform-paths"
+      }
+    ]
+  },
+  "include": [
+    "src/**/*"
+  ]
+}
