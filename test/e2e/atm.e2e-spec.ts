@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from './../src/AppModule';
-import { Denomination } from '../src/atm/provider/AtmProviderInterface'
+import { AppModule } from '../../src/AppModule';
+import { Denomination } from '../../src/atm/provider/AtmProviderInterface';
+import { AtmRepository } from '../../src/atm/repository/AtmRepository';
 
 type GenerateResponseCommand = {
   thousand?: number,
@@ -20,6 +21,8 @@ type GenerateResponseCommand = {
 describe('ATM', () => {
   let app: INestApplication;
   let agent: request.SuperTest<request.Test>;
+  let atmRepository: AtmRepository;
+  let atmId: string = 'atm_1';
 
   const fullAmount = {
     thousand: 1,
@@ -34,7 +37,7 @@ describe('ATM', () => {
     one: 1000,
   };
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -43,35 +46,47 @@ describe('ATM', () => {
     await app.init();
 
     agent = request(app.getHttpServer());
+    atmRepository = moduleFixture.get<AtmRepository>(AtmRepository);
   });
 
   afterAll(async () => {
     await app.close();
   });
   
+  const fillDB = async () => {
+    await atmRepository.upsert({
+      tx: null,
+      model: {
+        atmId,
+        ...fullAmount,
+      }
+    });
+  }
+
   describe('atm/refill', () => {
     it.each([
-      [1000, { denomination: Denomination.THOUSAND, amount: 1 }],
-      [500, { denomination: Denomination.FIVEHUNDRED, amount: 2 }],
-      [200, { denomination: Denomination.TWOHUNDRED, amount: 5 }],
-      [100, { denomination: Denomination.ONEHUNDRED, amount: 10 }],
-      [50, { denomination: Denomination.FIFTY, amount: 20 }],
-      [20, { denomination: Denomination.TWENTY, amount: 50 }],
-      [10, { denomination: Denomination.TEN, amount: 100 }],
-      [5, { denomination: Denomination.FIVE, amount: 200 }],
-      [2, { denomination: Denomination.TWO, amount: 500 }],
-      [1, { denomination: Denomination.ONE, amount: 1000 }],
-    ])('Should refill %s', (_, payload) => {
-      return agent
+      [500, { atmId, denomination: Denomination.FIVEHUNDRED, amount: 2 }],
+      [200, { atmId, denomination: Denomination.TWOHUNDRED, amount: 5 }],
+      [100, { atmId, denomination: Denomination.ONEHUNDRED, amount: 10 }],
+      [50, { atmId, denomination: Denomination.FIFTY, amount: 20 }],
+      [20, { atmId, denomination: Denomination.TWENTY, amount: 50 }],
+      [10, { atmId, denomination: Denomination.TEN, amount: 100 }],
+      [5, { atmId, denomination: Denomination.FIVE, amount: 200 }],
+      [2, { atmId, denomination: Denomination.TWO, amount: 500 }],
+      [1, { atmId, denomination: Denomination.ONE, amount: 1000 }],
+    ])('Should refill %s', async (_, payload) => {
+      return await agent
         .post('/atm/refill')
-        .send({
-          payload
-        })
+        .send(payload)
         .expect(201);
     });
   });
 
   describe('atm/withdraw', () => {
+    beforeEach(async () => {
+      await fillDB();
+    });
+
     it.each([
       [10000, fullAmount],
       [5555, { thousand: 1, fiveHundred: 2, twoHundred: 5, oneHundred: 10, fifty: 20, twenty: 27, ten: 1, five: 1 }],
@@ -86,37 +101,39 @@ describe('ATM', () => {
       [5, { five: 1 }],
       [2, { two: 1 }],
       [1, { one: 1 }],
-    ])('Should withdraw %s', (amount, payload) => {
-      return agent
+    ])('Should withdraw %s', async (amount, payload) => {      
+      return await agent
         .post('/atm/withdraw')
         .send({
-          amount
+          atmId,
+          amount,
         })
         .expect(200)
         .expect(generateResponse(payload));
     });
 
-    it('should try to withdraw 10001 but throw exception \'There\'s not enough money in ATM. Try less amount\'', () => {
-      return agent
+    it('should try to withdraw 10001 but throw exception \'There\'s not enough money in ATM. Try another amount\'', async () => {
+      return await agent
         .post('/atm/withdraw')
         .send({
-          amount: 10001
+          atmId,
+          amount: 10001,
         })
         .expect(400)
-        .expect({ message: 'There\'s not enough money in ATM. Try less amount' });
+        .expect({ message: 'There\'s not enough money in ATM. Try another amount' });
     });
 
     it('should withdraw all amount and then reject', async () => {
       await agent
         .post('/atm/withdraw')
-        .send({ amount: 10000 })
+        .send({ atmId, amount: 10000 })
         .expect(200)
         .expect(generateResponse(fullAmount));
       return await agent
         .post('/atm/withdraw')
-        .send({ amount: 1 })
+        .send({ atmId, amount: 1 })
         .expect(400)
-        .expect({ message: 'There\'s not enough money in ATM. Try less amount' });
+        .expect({ message: 'There\'s not enough money in ATM. Try another amount' });
     })
   })
 });

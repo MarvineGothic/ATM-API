@@ -1,0 +1,24 @@
+{
+  "moduleFileExtensions": [
+    "js",
+    "json",
+    "ts"
+  ],
+  "roots": [
+    "../../src"
+  ],
+  "testRegex": "\\.spec\\.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "testEnvironment": "node",
+  "resetMocks": true,
+  "restoreMocks": true,
+  "globals": {
+    "ts-jest": {
+      "diagnostics": false,
+      "compiler": "ttypescript"
+    }
+  },
+  "coverageDirectory": "../../coverage"
+}

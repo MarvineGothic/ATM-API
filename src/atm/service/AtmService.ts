@@ -1,6 +1,10 @@
-import { Inject, Injectable, InternalServerErrorException } from "@nestjs/common";
-import { ATM_PROVIDER_TOKEN } from "atm/provider/AtmProvider";
-import { AtmProviderInterface, NotesAndCoins, RefillDenominationCommand } from "atm/provider/AtmProviderInterface";
+import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ATM_PROVIDER_TOKEN } from 'atm/provider/AtmProvider';
+import {
+  AtmProviderInterface,
+  NotesAndCoins,
+  RefillDenominationCommand,
+} from 'atm/provider/AtmProviderInterface';
 
 
 @Injectable()
@@ -10,19 +14,15 @@ export class AtmService {
     private readonly atmProvider: AtmProviderInterface,
   ) { }
 
-  refillDenomination(command: RefillDenominationCommand): void {
-    return this.atmProvider.refillDenomination(command)
+  async refillDenomination(command: RefillDenominationCommand): Promise<void> {
+    const isRefilled = await this.atmProvider.refillDenomination(command);
+    
+    if (!isRefilled) {
+      throw new InternalServerErrorException({ message: 'ATM internal error. Cannot refill' });
+    }
   }
 
-  withdraw(amount: number): NotesAndCoins {
-    const checkedAmounts = this.atmProvider.checkAmounts(amount);
-
-    const isWithdrawed = this.atmProvider.withdraw(checkedAmounts);
-
-    if (!isWithdrawed) {
-      throw new InternalServerErrorException({ message: 'ATM internal error. Cannot withdraw amount' });
-    }
-
-    return checkedAmounts;
+  async withdrawAmount({ atmId, amount }: { atmId: string, amount: number }): Promise<NotesAndCoins> {
+    return await this.atmProvider.withdrawAmount({ atmId, amount });
   }
 }

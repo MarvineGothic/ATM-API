@@ -1,8 +1,12 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { NotesAndCoins } from "atm/provider/AtmProviderInterface";
-import { IsNumber } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { NotesAndCoins } from 'atm/provider/AtmProviderInterface';
+import { IsNumber, IsString } from 'class-validator';
 
 export class WithdrawRequest {
+  @ApiProperty()
+  @IsString()
+  atmId!: string;
+  
   @ApiProperty()
   @IsNumber({
     maxDecimalPlaces: 0,
@@ -78,7 +82,7 @@ export class WithdrawResponse {
       leTwentyMm: {
         ten: amount.ten,
         one: amount.one,
-      }
+      },
     }
   }
 

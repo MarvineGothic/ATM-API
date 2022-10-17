@@ -1,60 +1,84 @@
 import { Injectable } from '@nestjs/common';
-import { Denomination, NotesAndCoins } from 'atm/provider/AtmProviderInterface';
+import { AtmStatus } from 'atm/entity/AtmStatus';
+import { ATM_TABLE_NAME } from 'common/db_constants';
+import { BaseRepository, MaybeTransactional } from 'common/repositories/BaseRepository';
 
-type BaseCommand = {
-  denomination: Denomination,
-  amount: number
-};
-
-type GetAvailableAmountCommand = BaseCommand;
-type IncreaseAmount = BaseCommand;
-type DecreaseAmount = BaseCommand;
+type CreateCommand = MaybeTransactional & {
+  model: {
+    atmId: string,
+    thousand?: number,
+    fiveHundred?: number,
+    twoHundred?: number,
+    oneHundred?: number,
+    fifty?: number,
+    twenty?: number,
+    five?: number,
+    two?: number,
+    ten?: number,
+    one?: number,
+    createdAt?: Date,
+    updatedAt?: Date,
+  }
+}
 
 @Injectable()
-export class AtmRepository {
-  private atm: NotesAndCoins;
+export class AtmRepository extends BaseRepository {
 
-  constructor() {
-    this.atm = {
-      thousand: 1,
-      fiveHundred: 2,
-      twoHundred: 5,
-      oneHundred: 10,
-      fifty: 20,
-      twenty: 50,
-      ten: 100,
-      five: 200,
-      two: 500,
-      one: 1000,
-    }
-  }
-  
-  getAvailableAmount(command: GetAvailableAmountCommand): number {
-    const availableAmount = this.atm[command.denomination];
-    const isEnough = availableAmount >= command.amount;
-    if (!isEnough) {
-      return availableAmount;
-    }
+  async create(command: CreateCommand): Promise<number> {
+    const now = new Date();
 
-    return command.amount;
+    const [{ id }] = await this.getKnex(command.tx)(ATM_TABLE_NAME)
+      .insert({
+        ...command.model,
+        createdAt: command.model.createdAt ?? now,
+        updatedAt: command.model.updatedAt ?? now,
+      })
+      .returning('id');
+
+    return id;
   }
 
-  increaseAmount(command: IncreaseAmount): boolean {
-    const prevAmount = this.atm[command.denomination];
-    this.atm[command.denomination] = prevAmount + command.amount;
-    return true;
+  async update(command: CreateCommand): Promise<number> {
+    const now = new Date();
+
+    const [{ id }] = await this.getKnex(command.tx)(ATM_TABLE_NAME)
+      .update({
+        ...command.model,
+        updatedAt: command.model.updatedAt ?? now,
+      })
+      .where({
+        atmId: command.model.atmId,
+      })
+      .returning('id');
+
+    return id;
   }
 
-  decreaseAmount(command: DecreaseAmount): boolean {
-    const prevAmount = this.atm[command.denomination];
-    const newAmount = prevAmount - command.amount;
+  async upsert(command: CreateCommand): Promise<number> {
+    const now = new Date();
 
-    if (newAmount < 0) {
-      return false;
-    }
+    const [{ id }] = await this.getKnex(null)(ATM_TABLE_NAME)
+      .insert({
+        ...command.model,
+        createdAt: command.model.createdAt ?? now,
+        updatedAt: command.model.updatedAt ?? now,
+      })
+      .onConflict('atmId')
+      .merge({
+        ...command.model,
+        updatedAt: command.model.updatedAt ?? now,
+      })
+      .returning('id');
 
-    this.atm[command.denomination] = newAmount;
+    return id;
+  }
 
-    return true;
+  async getAtmStatusByAtmId(command: { atmId: string }): Promise<AtmStatus | undefined> {
+    return await this.getKnex(null)<AtmStatus>(ATM_TABLE_NAME)
+      .select()
+      .where({
+        atmId: command.atmId,
+      })
+      .first();
   }
 }

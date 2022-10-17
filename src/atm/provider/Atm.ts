@@ -1,15 +1,32 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
-import { AtmRepository } from "atm/repository/AtmRepository";
-import { AtmProviderInterface, Denomination, NotesAndCoins, RefillDenominationCommand } from "./AtmProviderInterface";
+import { BadRequestException, Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { AtmStatus } from 'atm/entity/AtmStatus';
+import { AtmRepository } from 'atm/repository/AtmRepository';
+import { DEFAULT_TRANSACTION_MANAGER, KnexTransactionManager } from 'common/knexTransactionManager/KnexTransactionManager';
+import { hasNoValue, hasValue } from 'common/utils/nullable';
+import {
+  AtmProviderInterface,
+  Denomination,
+  denominationValues,
+  NotesAndCoins,
+  RefillDenominationCommand,
+  WithdrawAmountCommand,
+} from './AtmProviderInterface';
 
+type GetAvailableAmountCommand = {
+  atmStatus: AtmStatus,
+  denomination: Denomination,
+  requiredAmount: number,
+}
 
 @Injectable()
 export class Atm implements AtmProviderInterface {
   constructor(
+    @Inject(DEFAULT_TRANSACTION_MANAGER) private readonly transactionManager: KnexTransactionManager,
     private readonly atmRepository: AtmRepository,
   ) { }
-  
-  checkAmounts(amount: number): NotesAndCoins {
+
+  async withdrawAmount({ atmId, amount }: WithdrawAmountCommand): Promise<NotesAndCoins> {
+
     let enoughMoney = false;
 
     const checkedAmounts = {
@@ -25,64 +42,79 @@ export class Atm implements AtmProviderInterface {
       one: 0,
     }
 
-    const values = new Map([
-      [Denomination.THOUSAND, 1000],
-      [Denomination.FIVEHUNDRED, 500],
-      [Denomination.TWOHUNDRED, 200],
-      [Denomination.ONEHUNDRED, 100],
-      [Denomination.FIFTY, 50],
-      [Denomination.TWENTY, 20],
-      [Denomination.TEN, 10],
-      [Denomination.FIVE, 5],
-      [Denomination.TWO, 2],
-      [Denomination.ONE, 1],
-    ]);
+    const atmStatus = await this.atmRepository.getAtmStatusByAtmId({ atmId });
 
-    for (const [key, value] of values) {
-      const thousandNotesAmount = Math.floor(amount / value);
+    if (hasNoValue(atmStatus)) {
+      throw new InternalServerErrorException({ message: 'ATM internal error. Cannot withdraw amount' });
+    }
 
-      if (thousandNotesAmount) {
-        checkedAmounts[key] = this.atmRepository.getAvailableAmount({
-          denomination: key,
-          amount: thousandNotesAmount,
-        });
-        amount = amount - checkedAmounts[key] * value;
+    await this.transactionManager.withTransaction(async tx => {
+      for (const [denomination, value] of denominationValues) {
+        const requiredAmount = Math.floor(amount / value);
 
-        if (checkedAmounts[key] === thousandNotesAmount) {
-          enoughMoney = true;
-        } else {
-          enoughMoney = false;
+        if (requiredAmount) {
+          const availableAmount = this.getAvailableAmount({
+            atmStatus,
+            denomination,
+            requiredAmount: requiredAmount,
+          });
+
+          await this.atmRepository.update({
+            tx,
+            model: {
+              atmId,
+              [denomination]: atmStatus[denomination] - availableAmount,
+            },
+          });
+
+          checkedAmounts[denomination] = availableAmount;
+
+          amount = amount - availableAmount * value;
+
+          if (availableAmount === requiredAmount) {
+            enoughMoney = true;
+          } else {
+            enoughMoney = false;
+          }
         }
       }
-    }
 
-    if (!enoughMoney) {
-      throw new BadRequestException({ message: 'There\'s not enough money in ATM. Try less amount' });
-    }
+      if (!enoughMoney) {
+        throw new BadRequestException({ message: 'There\'s not enough money in ATM. Try another amount' });
+      }
+    });
 
     return checkedAmounts;
   }
 
-  refillDenomination({ denomination, amount }: RefillDenominationCommand): void {
-    this.atmRepository.increaseAmount({ denomination, amount });
-  }
+  async refillDenomination({ atmId, denomination, amount }: RefillDenominationCommand): Promise<boolean> {
+    const atm = await this.atmRepository.getAtmStatusByAtmId({ atmId });
 
-  withdraw(checkedAmount: NotesAndCoins): boolean {
-    let success = true;
-    for (const [key, value] of Object.entries(checkedAmount)) {
-      const decreased = this.atmRepository.decreaseAmount({ denomination: key as Denomination, amount: value });
-      success = !decreased ? false : success;
-      console.log(key, decreased)
-    }
-
-    if (!success) {
-      for (const [key, value] of Object.entries(checkedAmount)) {
-        this.refillDenomination({ denomination: key as Denomination, amount: value });
-      }
-
-      return false;
+    if (hasValue(atm)) {
+      const currentAmount = atm[denomination];
+      const newAmount = currentAmount + amount;
+      await this.atmRepository.update({ tx: null, model: { atmId: atm.atmId, [denomination]: newAmount } });
+    } else {
+      await this.atmRepository.upsert({
+        tx: null,
+        model: {
+          atmId,
+          [denomination]: amount,
+        },
+      });
     }
 
     return true;
+  }
+
+  getAvailableAmount(command: GetAvailableAmountCommand): number {
+    const availableAmount = command.atmStatus[command.denomination];
+    const isEnough = availableAmount >= command.requiredAmount;
+
+    if (!isEnough) {
+      return availableAmount;
+    }
+
+    return command.requiredAmount;
   }
 }

@@ -24,13 +24,31 @@ export type NotesAndCoins = {
   [Denomination.ONE]: number;
 }
 
+export const denominationValues = new Map([
+  [Denomination.THOUSAND, 1000],
+  [Denomination.FIVEHUNDRED, 500],
+  [Denomination.TWOHUNDRED, 200],
+  [Denomination.ONEHUNDRED, 100],
+  [Denomination.FIFTY, 50],
+  [Denomination.TWENTY, 20],
+  [Denomination.TEN, 10],
+  [Denomination.FIVE, 5],
+  [Denomination.TWO, 2],
+  [Denomination.ONE, 1],
+]);
+
+export type WithdrawAmountCommand = {
+  atmId: string,
+  amount: number,
+}
+
 export type RefillDenominationCommand = {
+  atmId: string,
   denomination: Denomination,
   amount: number,
 }
 
 export interface AtmProviderInterface {
-  checkAmounts: (amount: number) => NotesAndCoins;
-  refillDenomination: (command: RefillDenominationCommand) => void;
-  withdraw: (checkedAmounts: NotesAndCoins) => boolean;
+  withdrawAmount: (command: WithdrawAmountCommand) => Promise<NotesAndCoins>;
+  refillDenomination: (command: RefillDenominationCommand) => Promise<boolean>;
 }

@@ -15,12 +15,16 @@ export class AtmController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOkResponse()
   @ApiBadRequestResponse({
-    description: 'Bad request. Refill cancelled'
+    description: 'Internal error. Refill cancelled',
   })
-  refill(
+  async refill(
     @Body() body: RefillRequest
   ) {
-    this.atmService.refillDenomination({ denomination: body.denomination, amount: body.amount });
+    await this.atmService.refillDenomination({
+      atmId: body.atmId,
+      denomination: body.denomination,
+      amount: body.amount,
+    });
   }
 
   @Post('withdraw')
@@ -29,15 +33,18 @@ export class AtmController {
     type: WithdrawResponse,
   })
   @ApiNotFoundResponse({
-    description: 'Not enough money in ATM'
+    description: 'Not enough money in ATM',
   })
   @ApiBadRequestResponse({
-    description: 'Bad request'
+    description: 'Bad request',
   })
-  withdraw(
+  async withdraw(
     @Body() body: WithdrawRequest
   ) {
-    const withdrawedAmount = this.atmService.withdraw(body.amount);
+    const withdrawedAmount = await this.atmService.withdrawAmount({
+      atmId: body.atmId,
+      amount: body.amount,
+    });
 
     return WithdrawResponse.hydrate(withdrawedAmount);
   }
