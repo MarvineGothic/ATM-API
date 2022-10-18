@@ -21,6 +21,9 @@ Example: User wants to withdraw 578. The ATM responds with: Notes 1x500, 1x50, c
 
 ## Setup
 ```bash
+# install packages
+$ yarn
+
 # database
 $ yarn start:db
 
