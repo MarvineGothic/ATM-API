@@ -52,7 +52,7 @@ describe('ATM', () => {
   afterAll(async () => {
     await app.close();
   });
-  
+
   const fillDB = async () => {
     await atmRepository.upsert({
       tx: null,
@@ -64,22 +64,26 @@ describe('ATM', () => {
   }
 
   describe('atm/refill', () => {
-    it.each([
-      [500, { atmId, denomination: Denomination.FIVEHUNDRED, amount: 2 }],
-      [200, { atmId, denomination: Denomination.TWOHUNDRED, amount: 5 }],
-      [100, { atmId, denomination: Denomination.ONEHUNDRED, amount: 10 }],
-      [50, { atmId, denomination: Denomination.FIFTY, amount: 20 }],
-      [20, { atmId, denomination: Denomination.TWENTY, amount: 50 }],
-      [10, { atmId, denomination: Denomination.TEN, amount: 100 }],
-      [5, { atmId, denomination: Denomination.FIVE, amount: 200 }],
-      [2, { atmId, denomination: Denomination.TWO, amount: 500 }],
-      [1, { atmId, denomination: Denomination.ONE, amount: 1000 }],
-    ])('Should refill %s', async (_, payload) => {
-      return await agent
-        .post('/atm/refill')
-        .send(payload)
-        .expect(201);
-    });
+    for (const atmId of ['atm_1', 'atm_2']) {
+      it.each([
+        [500, { atmId, denomination: Denomination.FIVEHUNDRED, amount: 2 }],
+        [200, { atmId, denomination: Denomination.TWOHUNDRED, amount: 5 }],
+        [100, { atmId, denomination: Denomination.ONEHUNDRED, amount: 10 }],
+        [50, { atmId, denomination: Denomination.FIFTY, amount: 20 }],
+        [20, { atmId, denomination: Denomination.TWENTY, amount: 50 }],
+        [10, { atmId, denomination: Denomination.TEN, amount: 100 }],
+        [5, { atmId, denomination: Denomination.FIVE, amount: 200 }],
+        [2, { atmId, denomination: Denomination.TWO, amount: 500 }],
+        [1, { atmId, denomination: Denomination.ONE, amount: 1000 }],
+      ])(`Should refill %s for ${atmId}`, async (_, payload) => {
+        await agent
+          .post('/atm/refill')
+          .send(payload)
+          .expect(201);
+        const atmStatus = await atmRepository.getAtmStatusByAtmId({ atmId });
+        expect(atmStatus).toHaveProperty(payload.denomination, payload.amount);
+      });
+    }
   });
 
   describe('atm/withdraw', () => {
@@ -101,7 +105,7 @@ describe('ATM', () => {
       [5, { five: 1 }],
       [2, { two: 1 }],
       [1, { one: 1 }],
-    ])('Should withdraw %s', async (amount, payload) => {      
+    ])('Should withdraw %s', async (amount, payload) => {
       return await agent
         .post('/atm/withdraw')
         .send({
