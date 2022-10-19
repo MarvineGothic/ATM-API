@@ -53,7 +53,7 @@ export class Atm implements AtmProviderInterface {
         const requiredAmount = Math.floor(amount / value);
 
         if (requiredAmount) {
-          const availableAmount = this.getAvailableAmount({
+          const availableAmount = Atm.getAvailableAmount({
             atmStatus,
             denomination,
             requiredAmount: requiredAmount,
@@ -107,7 +107,7 @@ export class Atm implements AtmProviderInterface {
     return true;
   }
 
-  getAvailableAmount(command: GetAvailableAmountCommand): number {
+  static getAvailableAmount(command: GetAvailableAmountCommand): number {
     const availableAmount = command.atmStatus[command.denomination];
     const isEnough = availableAmount >= command.requiredAmount;
 
