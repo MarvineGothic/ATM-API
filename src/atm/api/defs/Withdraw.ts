@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { NotesAndCoins } from 'atm/provider/AtmProviderInterface';
-import { IsNumber, IsString } from 'class-validator';
+import { IsNumber, IsPositive, IsString } from 'class-validator';
 
 export class WithdrawRequest {
   @ApiProperty()
@@ -11,6 +11,7 @@ export class WithdrawRequest {
   @IsNumber({
     maxDecimalPlaces: 0,
   })
+  @IsPositive()
   amount!: number;
 }
 
