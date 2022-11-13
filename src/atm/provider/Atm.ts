@@ -2,9 +2,10 @@ import { BadRequestException, Inject, Injectable, InternalServerErrorException }
 import { AtmStatus } from 'atm/entity/AtmStatus';
 import { AtmRepository } from 'atm/repository/AtmRepository';
 import { DEFAULT_TRANSACTION_MANAGER, KnexTransactionManager } from 'common/knexTransactionManager/KnexTransactionManager';
-import { hasNoValue, hasValue } from 'common/utils/nullable';
+import { hasNoValue } from 'common/utils/nullable';
 import {
   AtmProviderInterface,
+  CreateAtmCommand,
   Denomination,
   denominationValues,
   NotesAndCoins,
@@ -20,10 +21,19 @@ type GetAvailableAmountCommand = {
 
 @Injectable()
 export class Atm implements AtmProviderInterface {
-  constructor(
+  constructor (
     @Inject(DEFAULT_TRANSACTION_MANAGER) private readonly transactionManager: KnexTransactionManager,
     private readonly atmRepository: AtmRepository,
   ) { }
+
+  async createAtm({ atmId }: CreateAtmCommand): Promise<void> {
+    await this.atmRepository.upsert({
+      tx: null,
+      model: {
+        atmId,
+      },
+    });
+  }
 
   async withdrawAmount({ atmId, amount }: WithdrawAmountCommand): Promise<NotesAndCoins> {
 
@@ -87,24 +97,20 @@ export class Atm implements AtmProviderInterface {
     return checkedAmounts;
   }
 
-  async refillDenomination({ atmId, denomination, amount }: RefillDenominationCommand): Promise<boolean> {
+  async refillDenomination({ atmId, denomination, amount }: RefillDenominationCommand): Promise<void> {
     const atm = await this.atmRepository.getAtmStatusByAtmId({ atmId });
 
-    if (hasValue(atm)) {
-      const currentAmount = atm[denomination];
-      const newAmount = currentAmount + amount;
-      await this.atmRepository.update({ tx: null, model: { atmId: atm.atmId, [denomination]: newAmount } });
-    } else {
-      await this.atmRepository.upsert({
-        tx: null,
-        model: {
-          atmId,
-          [denomination]: amount,
-        },
-      });
+    if (hasNoValue(atm)) {
+      throw new InternalServerErrorException('ATM with this id does not exist');
     }
 
-    return true;
+    const currentAmount = atm[denomination];
+    const newAmount = currentAmount + amount;
+    const id = await this.atmRepository.update({ tx: null, model: { atmId: atm.atmId, [denomination]: newAmount } });
+
+    if (!id) {
+      throw new InternalServerErrorException('ATM internal error. Cannot refill');
+    }
   }
 
   static getAvailableAmount(command: GetAvailableAmountCommand): number {

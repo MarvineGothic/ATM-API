@@ -4,10 +4,6 @@ import { IsNumber, IsPositive, IsString } from 'class-validator';
 
 export class WithdrawRequest {
   @ApiProperty()
-  @IsString()
-  atmId!: string;
-  
-  @ApiProperty()
   @IsNumber({
     maxDecimalPlaces: 0,
   })

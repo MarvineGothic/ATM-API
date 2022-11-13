@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { AtmStatus } from 'atm/entity/AtmStatus';
+import { Atm } from 'atm/provider/Atm';
 import { ATM_TABLE_NAME } from 'common/db_constants';
 import { BaseRepository, MaybeTransactional } from 'common/repositories/BaseRepository';
 
-type CreateCommand = MaybeTransactional & {
+type CommonCommand = MaybeTransactional & {
   model: {
     atmId: string,
     thousand?: number,
@@ -21,8 +22,28 @@ type CreateCommand = MaybeTransactional & {
   }
 }
 
+type CreateCommand = CommonCommand;
+type UpdateCommand = CommonCommand;
+
+type UpsertCommand = MaybeTransactional & {
+  model: {
+    atmId: string,
+    createdAt?: Date,
+    updatedAt?: Date,
+  }
+}
+
 @Injectable()
 export class AtmRepository extends BaseRepository {
+
+  async getAtmStatusByAtmId(command: { atmId: string }): Promise<AtmStatus | undefined> {
+    return await this.getKnex(null)<AtmStatus>(ATM_TABLE_NAME)
+      .select()
+      .where({
+        atmId: command.atmId,
+      })
+      .first();
+  }
 
   async create(command: CreateCommand): Promise<number> {
     const now = new Date();
@@ -38,7 +59,7 @@ export class AtmRepository extends BaseRepository {
     return id;
   }
 
-  async update(command: CreateCommand): Promise<number> {
+  async update(command: UpdateCommand): Promise<number> {
     const now = new Date();
 
     const [{ id }] = await this.getKnex(command.tx)(ATM_TABLE_NAME)
@@ -54,7 +75,7 @@ export class AtmRepository extends BaseRepository {
     return id;
   }
 
-  async upsert(command: CreateCommand): Promise<number> {
+  async upsert(command: UpsertCommand): Promise<number> {
     const now = new Date();
 
     const [{ id }] = await this.getKnex(null)(ATM_TABLE_NAME)
@@ -64,21 +85,9 @@ export class AtmRepository extends BaseRepository {
         updatedAt: command.model.updatedAt ?? now,
       })
       .onConflict('atmId')
-      .merge({
-        ...command.model,
-        updatedAt: command.model.updatedAt ?? now,
-      })
+      .ignore()
       .returning('id');
 
     return id;
-  }
-
-  async getAtmStatusByAtmId(command: { atmId: string }): Promise<AtmStatus | undefined> {
-    return await this.getKnex(null)<AtmStatus>(ATM_TABLE_NAME)
-      .select()
-      .where({
-        atmId: command.atmId,
-      })
-      .first();
   }
 }

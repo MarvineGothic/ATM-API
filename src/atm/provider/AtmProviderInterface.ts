@@ -37,6 +37,10 @@ export const denominationValues = new Map([
   [Denomination.ONE, 1],
 ]);
 
+export type CreateAtmCommand = {
+  atmId: string;
+}
+
 export type WithdrawAmountCommand = {
   atmId: string,
   amount: number,
@@ -49,6 +53,7 @@ export type RefillDenominationCommand = {
 }
 
 export interface AtmProviderInterface {
+  createAtm: (command: CreateAtmCommand) => Promise<void>;
   withdrawAmount: (command: WithdrawAmountCommand) => Promise<NotesAndCoins>;
-  refillDenomination: (command: RefillDenominationCommand) => Promise<boolean>;
+  refillDenomination: (command: RefillDenominationCommand) => Promise<void>;
 }

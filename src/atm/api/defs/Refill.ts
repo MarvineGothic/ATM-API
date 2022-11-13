@@ -1,17 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Denomination } from 'atm/provider/AtmProviderInterface';
-import { IsEnum, IsNumber, IsString } from 'class-validator';
+import { IsEnum, IsNumber, IsPositive, IsString } from 'class-validator';
 
 export class RefillRequest {
-  @ApiProperty()
-  @IsString()
-  atmId!: string;
-  
   @ApiProperty()
   @IsEnum(Denomination)
   denomination!: Denomination;
 
   @ApiProperty()
-  @IsNumber()
+  @IsNumber({
+    maxDecimalPlaces: 0,
+  })
+  @IsPositive()
   amount!: number;
 }
